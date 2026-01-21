@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>インベーダー風ゲーム</title>
+    <style>
+        body {
+            background: #000;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            margin: auto;
+            background: #111;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="game" width="480" height="640"></canvas>
+
+    <script>
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
+
+        // ======================
+        // プレイヤー
+        // ======================
+        const player = {
+            x: 220,
+            y: 580,
+            width: 40,
+            height: 20,
+            speed: 6
+        };
+
+        // ======================
+        // 弾
+        // ======================
+        let bullets = [];
+
+        // ======================
+        // 敵
+        // ======================
+        let enemies = [];
+        const ENEMY_ROWS = 4;
+        const ENEMY_COLS = 6;
+        const ENEMY_SIZE = 30;
+
+        for (let r = 0; r < ENEMY_ROWS; r++) {
+            for (let c = 0; c < ENEMY_COLS; c++) {
+                enemies.push({
+                    x: 50 + c * 60,
+                    y: 50 + r * 50,
+                    width: ENEMY_SIZE,
+                    height: ENEMY_SIZE,
+                    alive: true
+                });
+            }
+        }
+
+        // ======================
+        // 入力
+        // ======================
+        const keys = {};
+        document.addEventListener("keydown", e => keys[e.code] = true);
+        document.addEventListener("keyup", e => keys[e.code] = false);
+
+        // ======================
+        // 更新処理
+        // ======================
+        function update() {
+            // プレイヤー移動
+            if (keys["ArrowLeft"]) {
+                player.x -= player.speed;
+            }
+            if (keys["ArrowRight"]) {
+                player.x += player.speed;
+            }
+
+            // 画面外に出ない
+            player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
+
+            // 弾発射
+            if (keys["Space"]) {
+                if (bullets.length < 1) {
+                    bullets.push({
+                        x: player.x + player.width / 2 - 2,
+                        y: player.y,
+                        width: 4,
+                        height: 10,
+                        speed: 8
+                    });
+                }
+            }
+
+            // 弾移動
+            bullets.forEach(b => b.y -= b.speed);
+            bullets = bullets.filter(b => b.y > 0);
+
+            // 当たり判定
+            bullets.forEach(bullet => {
+                enemies.forEach(enemy => {
+                    if (
+                        enemy.alive &&
+                        bullet.x < enemy.x + enemy.width &&
+                        bullet.x + bullet.width > enemy.x &&
+                        bullet.y < enemy.y + enemy.height &&
+                        bullet.y + bullet.height > enemy.y
+                    ) {
+                        enemy.alive = false;
+                        bullet.y = -100; // 弾削除
+                    }
+                });
+            });
+        }
+
+        // ======================
+        // 描画処理
+        // ======================
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // プレイヤー
+            ctx.fillStyle = "lime";
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+
+            // 弾
+            ctx.fillStyle = "yellow";
+            bullets.forEach(b =>
+                ctx.fillRect(b.x, b.y, b.width, b.height)
+            );
+
+            // 敵
+            ctx.fillStyle = "red";
+            enemies.forEach(e => {
+                if (e.alive) {
+                    ctx.fillRect(e.x, e.y, e.width, e.height);
+                }
+            });
+        }
+
+        // ======================
+        // ゲームループ
+        // ======================
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+
+</html>

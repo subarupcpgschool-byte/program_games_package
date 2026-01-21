@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>タイピングゲーム（JSだけ）</title>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            background: #0b0f14;
+            color: #e8eef5;
+            display: grid;
+            place-items: center;
+            min-height: 100vh;
+        }
+
+        .wrap {
+            width: min(900px, 92vw);
+            background: #121a24;
+            border: 1px solid #223044;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, .35);
+        }
+
+        h1 {
+            margin: 0 0 10px;
+            font-size: 20px;
+        }
+
+        .hint {
+            margin: 0 0 14px;
+            opacity: .8;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .panel {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: 1fr;
+        }
+
+        .target {
+            background: #0e1520;
+            border: 1px solid #223044;
+            border-radius: 12px;
+            padding: 14px;
+            font-size: 18px;
+            line-height: 1.8;
+            word-break: break-word;
+        }
+
+        .target .done {
+            opacity: .55;
+        }
+
+        .target .now {
+            display: inline-block;
+            padding: 0 2px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, .14);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12);
+        }
+
+        .target .rest {
+            opacity: .95;
+        }
+
+        .input {
+            display: grid;
+            gap: 8px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid #2a3a54;
+            background: #0b111a;
+            color: #e8eef5;
+            font-size: 16px;
+            outline: none;
+        }
+
+        input[type="text"]:focus {
+            border-color: #4a6aa3;
+            box-shadow: 0 0 0 3px rgba(74, 106, 163, .25);
+        }
+
+        .stats {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .card {
+            background: #0e1520;
+            border: 1px solid #223044;
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .label {
+            font-size: 12px;
+            opacity: .7;
+            margin-bottom: 6px;
+        }
+
+        .value {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            border: 1px solid #2a3a54;
+            background: #0b111a;
+            color: #e8eef5;
+            padding: 10px 12px;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            border-color: #4a6aa3;
+        }
+
+        .badge {
+            font-size: 12px;
+            opacity: .8;
+            border: 1px solid #223044;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: #0e1520;
+        }
+
+        .footer {
+            margin-top: 8px;
+            opacity: .75;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <h1>タイピングゲーム（サンプル）</h1>
+        <p class="hint">
+            文章をそのままタイプしていきます。<br>
+            1文字目から一致している部分だけ進みます（途中修正OK）。<br>
+            クリアしたら <b>Enter</b> で次の文章、<b>Esc</b> でリセット。
+        </p>
+
+        <div class="panel">
+            <div class="row">
+                <span class="badge" id="modeBadge">モード: 日本語かな混在</span>
+                <button id="nextBtn" type="button">次の文章（Enter）</button>
+                <button id="resetBtn" type="button">リセット（Esc）</button>
+            </div>
+
+            <div class="target" id="targetView"></div>
+
+            <div class="input">
+                <input id="typeBox" type="text" autocomplete="off" spellcheck="false" placeholder="ここに入力（クリックして開始）" />
+                <div class="footer" id="msg"></div>
+            </div>
+
+            <div class="stats">
+                <div class="card">
+                    <div class="label">経過時間</div>
+                    <div class="value" id="time">0.0s</div>
+                </div>
+                <div class="card">
+                    <div class="label">正解文字</div>
+                    <div class="value" id="correct">0</div>
+                </div>
+                <div class="card">
+                    <div class="label">ミス（不一致入力回数）</div>
+                    <div class="value" id="miss">0</div>
+                </div>
+                <div class="card">
+                    <div class="label">WPM（目安）</div>
+                    <div class="value" id="wpm">0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (() => {
+            // 出題文（好きに増やせます）
+            const SENTENCES = [
+                "hello world",
+                "javascript is fun",
+                "type to win",
+                "猫が好きです",
+                "すばるパソコン教室",
+                "HTMLとCSSとJavaScript",
+                "今日もコツコツ続けよう",
+                "バグは友達",
+                "canvasでゲームを作る",
+                "キー入力を扱う練習"
+            ];
+
+            const elTargetView = document.getElementById("targetView");
+            const elTypeBox = document.getElementById("typeBox");
+            const elMsg = document.getElementById("msg");
+            const elTime = document.getElementById("time");
+            const elCorrect = document.getElementById("correct");
+            const elMiss = document.getElementById("miss");
+            const elWpm = document.getElementById("wpm");
+            const btnNext = document.getElementById("nextBtn");
+            const btnReset = document.getElementById("resetBtn");
+
+            let target = "";
+            let started = false;
+            let startMs = 0;
+            let rafId = 0;
+
+            let correctChars = 0; // 総正解文字（確定分）
+            let missCount = 0;
+            let prevInput = "";
+            let cleared = false;
+
+            function pickTarget() {
+                const idx = Math.floor(Math.random() * SENTENCES.length);
+                return SENTENCES[idx];
+            }
+
+            function commonPrefixLen(a, b) {
+                const n = Math.min(a.length, b.length);
+                let i = 0;
+                for (; i < n; i++) if (a[i] !== b[i]) break;
+                return i;
+            }
+
+            function renderTarget(prefixLen) {
+                const done = target.slice(0, prefixLen);
+                const now = target.slice(prefixLen, prefixLen + 1);
+                const rest = target.slice(prefixLen + 1);
+
+                // エスケープ簡易（HTML表示用）
+                const esc = (s) => s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+
+                elTargetView.innerHTML =
+                    `<span class="done">${esc(done)}</span>` +
+                    (now ? `<span class="now">${esc(now)}</span>` : "") +
+                    `<span class="rest">${esc(rest)}</span>`;
+            }
+
+            function setMessage(text) {
+                elMsg.textContent = text;
+            }
+
+            function elapsedSec() {
+                if (!started) return 0;
+                return (performance.now() - startMs) / 1000;
+            }
+
+            function updateTimeUi() {
+                const t = elapsedSec();
+                elTime.textContent = `${t.toFixed(1)}s`;
+
+                // WPM: 5文字=1単語換算の目安
+                const minutes = t / 60;
+                const wpm = minutes > 0 ? Math.floor((correctChars / 5) / minutes) : 0;
+                elWpm.textContent = String(isFinite(wpm) ? wpm : 0);
+
+                rafId = requestAnimationFrame(updateTimeUi);
+            }
+
+            function startTimerIfNeeded() {
+                if (started) return;
+                started = true;
+                startMs = performance.now();
+                cancelAnimationFrame(rafId);
+                rafId = requestAnimationFrame(updateTimeUi);
+            }
+
+            function nextSentence() {
+                target = pickTarget();
+                elTypeBox.value = "";
+                prevInput = "";
+                cleared = false;
+                renderTarget(0);
+                setMessage("入力して開始！");
+                elTypeBox.focus();
+            }
+
+            function resetAll() {
+                started = false;
+                cancelAnimationFrame(rafId);
+                elTime.textContent = "0.0s";
+                correctChars = 0;
+                missCount = 0;
+                elCorrect.textContent = "0";
+                elMiss.textContent = "0";
+                elWpm.textContent = "0";
+                setMessage("リセットしました。クリックして開始。");
+                nextSentence();
+            }
+
+            function onInput() {
+                if (!target) return;
+
+                const input = elTypeBox.value;
+                startTimerIfNeeded();
+
+                // 正しい一致部分（先頭から）
+                const prefixLen = commonPrefixLen(target, input);
+                renderTarget(prefixLen);
+
+                // ミス判定：入力が増えたタイミングで、増えた分が一致してなければミス加算
+                if (input.length > prevInput.length) {
+                    const added = input.slice(prevInput.length);
+                    // 追加された各文字が、対応するターゲット位置と一致しているか
+                    for (let i = 0; i < added.length; i++) {
+                        const pos = prevInput.length + i;
+                        if (target[pos] !== added[i]) {
+                            missCount++;
+                        }
+                    }
+                    elMiss.textContent = String(missCount);
+                }
+
+                prevInput = input;
+
+                // クリア判定（完全一致）
+                if (!cleared && input === target) {
+                    cleared = true;
+
+                    // 正解文字（今回の文の文字数を確定加算）
+                    correctChars += target.length;
+                    elCorrect.textContent = String(correctChars);
+                    setMessage("クリア！ Enterで次の文章へ。");
+                } else if (!cleared) {
+                    setMessage("そのまま続けて入力！");
+                }
+            }
+            let isComposing = false;
+
+            elTypeBox.addEventListener("compositionstart", () => {
+                isComposing = true;
+                console.log("IME変換開始");
+            });
+
+            elTypeBox.addEventListener("compositionend", () => {
+                isComposing = false;
+                console.log("IME変換確定");
+            });
+
+            // キー操作
+            document.addEventListener("keydown", (e) => {
+                if (e.code === "Enter" && !isComposing) {
+                    if (cleared) {
+                        nextSentence();
+                    }
+                    return;
+                }
+                if (e.code === "Escape") {
+                    resetAll();
+                    return;
+                }
+            });
+
+            elTypeBox.addEventListener("input", onInput);
+            btnNext.addEventListener("click", () => nextSentence());
+            btnReset.addEventListener("click", () => resetAll());
+
+            // 初期化
+            resetAll();
+        })();
+    </script>
+</body>
+
+</html>
