@@ -84,6 +84,12 @@
             if (keys["ArrowRight"]) {
                 player.x += player.speed;
             }
+            if (keys["ArrowDown"]) {
+                player.y += player.speed;
+            }
+            if (keys["ArrowUp"]) {
+                player.y -= player.speed;
+            }
             // 左矢印キーで左移動
             //右矢印キーで左移動
 
@@ -93,15 +99,13 @@
 
             // 弾発射
             if (keys["Space"]) {
-                if (bullets.length < 1) {
-                    bullets.push({
-                        x: player.x + player.width / 2 - 2,
-                        y: player.y,
-                        width: 4,
-                        height: 10,
-                        speed: 8
-                    });
-                }
+                bullets.push({
+                    x: player.x + player.width / 2 - 2,
+                    y: player.y,
+                    width: 4,
+                    height: 10,
+                    speed: 8
+                });
             }
             // Spaceキーが押されていて
             //  画面上に弾が1つもない場合
