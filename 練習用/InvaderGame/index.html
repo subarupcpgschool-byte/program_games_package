@@ -77,21 +77,58 @@
         // ======================
         function update() {
             // プレイヤー移動
+            //console.log(keys)
+            if (keys["ArrowLeft"] || keys["KeyA"]) {
+                player.x -= player.speed;
+            }
+            if (keys["ArrowRight"]) {
+                player.x += player.speed;
+            }
             // 左矢印キーで左移動
             //右矢印キーで左移動
 
             // プレイヤーが画面外に出ないように制限
+            player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
+
 
             // 弾発射
+            if (keys["Space"]) {
+                if (bullets.length < 1) {
+                    bullets.push({
+                        x: player.x + player.width / 2 - 2,
+                        y: player.y,
+                        width: 4,
+                        height: 10,
+                        speed: 8
+                    });
+                }
+            }
             // Spaceキーが押されていて
             //  画面上に弾が1つもない場合
             //      弾を追加
 
             // 弾移動
+            bullets.forEach(b => b.y -= b.speed);
+            bullets = bullets.filter(b => b.y > 0);
+
             // 弾ループ
             // 画面外の弾を削除
 
             // 当たり判定
+            bullets.forEach(bullet => {
+                enemies.forEach(enemy => {
+                    if (
+                        enemy.alive &&
+                        bullet.x < enemy.x + enemy.width &&
+                        bullet.x + bullet.width > enemy.x &&
+                        bullet.y < enemy.y + enemy.height &&
+                        bullet.y + bullet.height > enemy.y
+                    ) {
+                        enemy.alive = false;
+                        bullet.y = -100;
+                    }
+                })
+            })
             //  弾のループ
             //      敵のループ
             //          当たったら
@@ -103,13 +140,21 @@
         // 描画処理
         // ======================
         function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             // 画面クリア
 
             // プレイヤー
+            ctx.fillStyle = "lime";
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+
             // 色指定
             // 四角形で描画
 
             // 弾
+            ctx.fillStyle = "yellow";
+            bullets.forEach(b =>
+                ctx.fillRect(b.x, b.y, b.width, b.height)
+            )
             // 色指定
             // 弾を描画
             //  四角形で描画
@@ -117,6 +162,11 @@
             // 敵
             // 色指定
             ctx.fillStyle = "red";
+            enemies.forEach(e => {
+                if (e.alive) {
+                    ctx.fillRect(e.x, e.y, e.width, e.height);
+                }
+            })
             // 敵描画
             // 敵ループ
             //  生きている場合
