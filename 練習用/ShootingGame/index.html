@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>縦シューティング（JSだけ）</title>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        body {
+            margin: 0;
+            background: #000;
+            display: grid;
+            place-items: center;
+            min-height: 100vh;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+
+        canvas {
+            background: #0b0f14;
+            border: 1px solid #223044;
+            border-radius: 14px;
+            box-shadow: 0 18px 40px rgba(0, 0, 0, .45);
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="game" width="480" height="640"></canvas>
+
+    <script>
+        (() => {
+            const canvas = document.getElementById("game");
+            const ctx = canvas.getContext("2d");
+
+            // ===== ユーティリティ =====
+            const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+            const rand = (min, max) => Math.random() * (max - min) + min;
+
+            const hitRect = (a, b) =>
+                a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+            // ===== 入力 =====
+            const keys = new Set();
+            addEventListener("keydown", (e) => keys.add(e.code));
+            addEventListener("keyup", (e) => keys.delete(e.code));
+
+            // ===== ゲーム状態 =====
+            let player, bullets, enemies, particles, score, gameOver;
+            let lastTime = 0;
+            let shootCool = 0;
+            let enemySpawn = 0;
+
+            function init() {
+                player = { x: 240 - 18, y: 640 - 70, w: 36, h: 36, speed: 320, hp: 1 };
+                bullets = [];
+                enemies = [];
+                particles = [];
+                score = 0;
+                gameOver = false;
+                lastTime = performance.now();
+                shootCool = 0;
+                enemySpawn = 0;
+            }
+
+            function spawnEnemy() {
+                const size = rand(26, 44);
+                enemies.push({
+                    x: rand(10, canvas.width - size - 10),
+                    y: -size - 10,
+                    w: size,
+                    h: size,
+                    vy: rand(90, 180) + Math.min(score * 0.5, 120), // 少しずつ難しく
+                });
+            }
+
+            function boom(x, y, count = 10) {
+                for (let i = 0; i < count; i++) {
+                    particles.push({
+                        x, y,
+                        vx: rand(-160, 160),
+                        vy: rand(-160, 160),
+                        life: rand(0.25, 0.55),
+                    });
+                }
+            }
+
+            // ===== 更新 =====
+            function update(dt) {
+                // ゲームオーバー時の処理
+                if (gameOver) {
+                    // Rキーでリスタート
+
+                    return;
+                }
+
+                // 自機移動
+                let dx = 0;
+
+                // 発射
+                shootCool -= dt;
+                // Spaceキーで弾を発射
+                if (keys.has("Space") && shootCool <= 0) {
+
+                    shootCool = 0.15; // 連射間隔
+                }
+
+                // 弾移動
+
+                // 敵スポーン（時間で）
+                enemySpawn -= dt;
+                const spawnInterval = Math.max(0.25, 0.9 - score / 250); // スコアで間隔短く
+                // 敵のスポーン処理
+                if (enemySpawn <= 0) {
+                }
+
+                // 敵移動
+
+                // 当たり判定：弾 vs 敵
+
+                // 当たり判定：敵 vs 自機
+
+                // パーティクル
+
+            }
+
+            // ===== 描画 =====
+            function draw() {
+                // 背景
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // スター（簡易）
+                ctx.globalAlpha = 0.15;
+                ctx.globalAlpha = 1;
+
+                // 自機
+                ctx.fillStyle = "#4cffc0";
+                // ちょい装飾
+                ctx.fillStyle = "#1a2f2a";
+
+                // 弾
+                ctx.fillStyle = "#ffe45c";
+
+                // 敵
+                ctx.fillStyle = "#ff4c6a";
+
+                // パーティクル
+                ctx.fillStyle = "white";
+                ctx.globalAlpha = 1;
+
+                // UI
+                ctx.fillStyle = "white";
+                ctx.font = "16px system-ui, sans-serif";
+                ctx.fillText(`SCORE: ${score}`, 14, 26);
+
+                // Game Over
+                if (gameOver) {
+                    ctx.fillStyle = "rgba(0,0,0,0.55)";
+
+                    ctx.fillStyle = "white";
+                    ctx.font = "bold 28px system-ui, sans-serif";
+                    ctx.textAlign = "center";
+
+                    ctx.font = "16px system-ui, sans-serif";
+                    ctx.textAlign = "left";
+                }
+            }
+
+            // ===== ループ =====
+            function loop(now) {
+                // 処理間隔を最大33msに制限 
+                const dt = Math.min(0.033, (now - lastTime) / 1000);
+                // 現在の時間を更新
+                lastTime = now;
+
+                // 更新処理
+                update(dt);
+                // 描画処理
+                draw();
+
+                // アニメーション更新
+                requestAnimationFrame(loop);
+            }
+
+            // 初期化
+            init();
+            // 
+            requestAnimationFrame(loop);
+        })();
+    </script>
+</body>
+
+</html>

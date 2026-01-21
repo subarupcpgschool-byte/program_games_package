@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>落ち物パズル（テトリス風・簡易）</title>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            background: #070a0f;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+
+        .wrap {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: auto 220px;
+            align-items: start;
+        }
+
+        canvas {
+            background: #0b111a;
+            border: 1px solid #223044;
+            border-radius: 14px;
+            box-shadow: 0 18px 40px rgba(0, 0, 0, .45);
+        }
+
+        .side {
+            background: #0b111a;
+            border: 1px solid #223044;
+            border-radius: 14px;
+            padding: 12px;
+            color: #e8eef5;
+            box-shadow: 0 18px 40px rgba(0, 0, 0, .25);
+        }
+
+        h1 {
+            margin: 0 0 10px;
+            font-size: 16px;
+        }
+
+        .small {
+            opacity: .8;
+            font-size: 12px;
+            line-height: 1.55;
+        }
+
+        .stat {
+            margin-top: 10px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .card {
+            background: #0e1520;
+            border: 1px solid #223044;
+            border-radius: 12px;
+            padding: 10px;
+        }
+
+        .label {
+            font-size: 12px;
+            opacity: .7;
+        }
+
+        .value {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .btn {
+            width: 100%;
+            margin-top: 10px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid #2a3a54;
+            background: #0e1520;
+            color: #e8eef5;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            border-color: #4a6aa3;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <canvas id="game" width="360" height="600"></canvas>
+
+        <div class="side">
+            <h1>落ち物パズル（簡易）</h1>
+            <div class="small">
+                ←→ 移動 / ↓ 早落ち / ↑ 回転<br>
+                Space ハードドロップ / R リスタート
+            </div>
+
+            <div class="stat">
+                <div class="card">
+                    <div class="label">SCORE</div>
+                    <div class="value" id="score">0</div>
+                </div>
+                <div class="card">
+                    <div class="label">LINES</div>
+                    <div class="value" id="lines">0</div>
+                </div>
+                <div class="card">
+                    <div class="label">LEVEL</div>
+                    <div class="value" id="level">1</div>
+                </div>
+            </div>
+
+            <button class="btn" id="restart">リスタート（R）</button>
+            <div class="small" id="msg" style="margin-top:10px;"></div>
+        </div>
+    </div>
+
+    <script>
+        (() => {
+            const canvas = document.getElementById("game");
+            const ctx = canvas.getContext("2d");
+
+            const elScore = document.getElementById("score");
+            const elLines = document.getElementById("lines");
+            const elLevel = document.getElementById("level");
+            const elMsg = document.getElementById("msg");
+            const btnRestart = document.getElementById("restart");
+
+            // ===== 設定 =====
+            const COLS = 10;
+            const ROWS = 20;
+            const BLOCK = 30; // 360/10=36でもいいが、見た目の余白を作るためスケール変換で描く
+
+            // 描画をスケールして中心寄せ
+            const FIELD_W = COLS * BLOCK;
+            const FIELD_H = ROWS * BLOCK;
+            const offsetX = Math.floor((canvas.width - FIELD_W) / 2);
+            const offsetY = Math.floor((canvas.height - FIELD_H) / 2);
+
+            // ===== テトリミノ定義（簡易）=====
+            // 1がブロック。回転は行列回転で対応
+            const SHAPES = [
+                { name: "I", m: [[1, 1, 1, 1]] },
+                { name: "O", m: [[1, 1], [1, 1]] },
+                { name: "T", m: [[0, 1, 0], [1, 1, 1]] },
+                { name: "S", m: [[0, 1, 1], [1, 1, 0]] },
+                { name: "Z", m: [[1, 1, 0], [0, 1, 1]] },
+                { name: "J", m: [[1, 0, 0], [1, 1, 1]] },
+                { name: "L", m: [[0, 0, 1], [1, 1, 1]] },
+            ];
+
+            // 色（指定はしてるけど、学習用なのでわかりやすさ優先）
+            const COLORS = {
+                I: "#58e1ff", O: "#ffe45c", T: "#b57bff", S: "#6bff8f",
+                Z: "#ff6b8f", J: "#66a6ff", L: "#ffb86b"
+            };
+
+            // ===== 状態 =====
+            let field, current, next;
+            let score, lines, level;
+            let dropTimer = 0;
+            let dropInterval = 0.8; // 秒
+            let gameOver = false;
+
+            const keys = new Set();
+            addEventListener("keydown", (e) => {
+                keys.add(e.code);
+
+                // ブラウザスクロール防止
+                if (["ArrowLeft", "ArrowRight", "ArrowDown", "ArrowUp", "Space"].includes(e.code)) e.preventDefault();
+
+                // 1回押し系（回転/ハードドロップ/リスタート）
+                if (e.code === "ArrowUp") tryRotate();
+                if (e.code === "Space") hardDrop();
+                if (e.code === "KeyR") init();
+            }, { passive: false });
+
+            addEventListener("keyup", (e) => keys.delete(e.code));
+
+            btnRestart.addEventListener("click", () => init());
+
+            function init() {
+                field = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+                score = 0; lines = 0; level = 1;
+                dropInterval = 0.8;
+                dropTimer = 0;
+                gameOver = false;
+                elMsg.textContent = "";
+                next = spawnPiece();
+                current = spawnPiece();
+                syncUI();
+            }
+
+            function syncUI() {
+                elScore.textContent = String(score);
+                elLines.textContent = String(lines);
+                elLevel.textContent = String(level);
+            }
+
+            function spawnPiece() {
+                const s = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+                const m = s.m.map(row => row.slice());
+                return {
+                    name: s.name,
+                    m,
+                    x: Math.floor((COLS - m[0].length) / 2),
+                    y: -m.length
+                };
+            }
+
+            function rotateMatrixCW(mat) {
+                // mat[h][w] -> rotated[w][h]
+                const h = mat.length;
+                const w = mat[0].length;
+                const res = Array.from({ length: w }, () => Array(h).fill(0));
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        res[x][h - 1 - y] = mat[y][x];
+                    }
+                }
+                return res;
+            }
+
+            function collides(px, py, pm) {
+                for (let y = 0; y < pm.length; y++) {
+                    for (let x = 0; x < pm[0].length; x++) {
+                        if (!pm[y][x]) continue;
+                        const fx = px + x;
+                        const fy = py + y;
+                        // 左右/下にはみ出し
+                        if (fx < 0 || fx >= COLS || fy >= ROWS) return true;
+                        // 上は許容（生成直後）
+                        if (fy < 0) continue;
+                        // 既存ブロック
+                        if (field[fy][fx]) return true;
+                    }
+                }
+                return false;
+            }
+
+            function lockPiece() {
+                const { x: px, y: py, m: pm, name } = current;
+                for (let y = 0; y < pm.length; y++) {
+                    for (let x = 0; x < pm[0].length; x++) {
+                        if (!pm[y][x]) continue;
+                        const fx = px + x;
+                        const fy = py + y;
+                        if (fy < 0) { // 上で固定＝ゲームオーバー
+                            gameOver = true;
+                            elMsg.textContent = "GAME OVER（Rでリスタート）";
+                            return;
+                        }
+                        field[fy][fx] = name;
+                    }
+                }
+                clearLines();
+                // 次を出す
+                current = next;
+                next = spawnPiece();
+                // 出現時点で当たってたら終了
+                if (collides(current.x, current.y, current.m)) {
+                    gameOver = true;
+                    elMsg.textContent = "GAME OVER（Rでリスタート）";
+                }
+            }
+
+            function clearLines() {
+                let cleared = 0;
+                for (let y = ROWS - 1; y >= 0; y--) {
+                    if (field[y].every(v => v !== null)) {
+                        field.splice(y, 1);
+                        field.unshift(Array(COLS).fill(null));
+                        cleared++;
+                        y++; // 同じ行をもう一度確認
+                    }
+                }
+                if (cleared > 0) {
+                    lines += cleared;
+
+                    // スコア（簡易）：1行100,2行300,3行500,4行800 × レベル
+                    const table = [0, 100, 300, 500, 800];
+                    score += (table[cleared] || 0) * level;
+
+                    // レベル：10ラインごと
+                    const newLevel = Math.floor(lines / 10) + 1;
+                    if (newLevel !== level) {
+                        level = newLevel;
+                        // 落下速度アップ（下限あり）
+                        dropInterval = Math.max(0.12, 0.8 - (level - 1) * 0.06);
+                    }
+                    syncUI();
+                }
+            }
+
+            function tryMove(dx, dy) {
+                const nx = current.x + dx;
+                const ny = current.y + dy;
+                if (!collides(nx, ny, current.m)) {
+                    current.x = nx;
+                    current.y = ny;
+                    return true;
+                }
+                return false;
+            }
+
+            function tryRotate() {
+                const rotated = rotateMatrixCW(current.m);
+                // 壁キック簡易：その場/左/右で試す
+                const tests = [0, -1, 1, -2, 2];
+                for (const kick of tests) {
+                    if (!collides(current.x + kick, current.y, rotated)) {
+                        current.m = rotated;
+                        current.x += kick;
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            function hardDrop() {
+                if (gameOver) return;
+                let dropped = 0;
+                while (tryMove(0, 1)) dropped++;
+                score += dropped; // 簡易ボーナス
+                syncUI();
+                lockPiece();
+            }
+
+            // ===== ループ =====
+            let last = performance.now();
+            function loop(now) {
+                const dt = Math.min(0.05, (now - last) / 1000);
+                last = now;
+
+                update(dt);
+                draw();
+
+                requestAnimationFrame(loop);
+            }
+
+            function update(dt) {
+                if (gameOver) return;
+
+                // 左右移動（押しっぱなし対応：簡易にクールダウン）
+                // 連打が速すぎないようにするため、内部タイマーを使う
+                // （教育用なのでシンプル実装）
+                moveRepeat(dt);
+
+                // ↓でソフトドロップ
+                const speed = keys.has("ArrowDown") ? 0.04 : dropInterval; // 押してる間早い
+                dropTimer += dt;
+                if (dropTimer >= speed) {
+                    dropTimer = 0;
+                    if (!tryMove(0, 1)) lockPiece();
+                }
+            }
+
+            // 左右のリピート処理（簡易）
+            let moveHold = 0;
+            let movedOnce = false;
+            function moveRepeat(dt) {
+                const left = keys.has("ArrowLeft");
+                const right = keys.has("ArrowRight");
+                if (!left && !right) {
+                    moveHold = 0;
+                    movedOnce = false;
+                    return;
+                }
+
+                moveHold += dt;
+
+                // 最初の1回は即反応
+                if (!movedOnce) {
+                    if (left) tryMove(-1, 0);
+                    if (right) tryMove(1, 0);
+                    movedOnce = true;
+                    moveHold = 0;
+                    return;
+                }
+
+                // 押しっぱなしは一定間隔で移動
+                const interval = 0.08;
+                if (moveHold >= interval) {
+                    moveHold = 0;
+                    if (left) tryMove(-1, 0);
+                    if (right) tryMove(1, 0);
+                }
+            }
+
+            function drawBlock(x, y, color) {
+                const px = offsetX + x * BLOCK;
+                const py = offsetY + y * BLOCK;
+
+                ctx.fillStyle = color;
+                ctx.fillRect(px, py, BLOCK, BLOCK);
+
+                // 立体感：枠
+                ctx.globalAlpha = 0.35;
+                ctx.strokeStyle = "#ffffff";
+                ctx.strokeRect(px + 1, py + 1, BLOCK - 2, BLOCK - 2);
+                ctx.globalAlpha = 1;
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // フィールド枠
+                ctx.strokeStyle = "#223044";
+                ctx.lineWidth = 2;
+                ctx.strokeRect(offsetX, offsetY, FIELD_W, FIELD_H);
+
+                // 固定ブロック
+                for (let y = 0; y < ROWS; y++) {
+                    for (let x = 0; x < COLS; x++) {
+                        const v = field[y][x];
+                        if (!v) continue;
+                        drawBlock(x, y, COLORS[v] || "#ccc");
+                    }
+                }
+
+                // 現在のピース
+                const pm = current.m;
+                for (let y = 0; y < pm.length; y++) {
+                    for (let x = 0; x < pm[0].length; x++) {
+                        if (!pm[y][x]) continue;
+                        const fx = current.x + x;
+                        const fy = current.y + y;
+                        if (fy < 0) continue;
+                        drawBlock(fx, fy, COLORS[current.name] || "#ccc");
+                    }
+                }
+
+                // ゴースト（落下位置のガイド）
+                const ghost = { x: current.x, y: current.y, m: current.m };
+                while (!collides(ghost.x, ghost.y + 1, ghost.m)) ghost.y++;
+                ctx.globalAlpha = 0.18;
+                for (let y = 0; y < ghost.m.length; y++) {
+                    for (let x = 0; x < ghost.m[0].length; x++) {
+                        if (!ghost.m[y][x]) continue;
+                        const fx = ghost.x + x;
+                        const fy = ghost.y + y;
+                        if (fy < 0) continue;
+                        drawBlock(fx, fy, "#ffffff");
+                    }
+                }
+                ctx.globalAlpha = 1;
+
+                if (gameOver) {
+                    ctx.fillStyle = "rgba(0,0,0,0.55)";
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = "white";
+                    ctx.font = "bold 28px system-ui, sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 10);
+                    ctx.font = "16px system-ui, sans-serif";
+                    ctx.fillText("Rキーでリスタート", canvas.width / 2, canvas.height / 2 + 22);
+                    ctx.textAlign = "left";
+                }
+            }
+
+            init();
+            requestAnimationFrame(loop);
+        })();
+    </script>
+</body>
+
+</html>
