@@ -86,15 +86,14 @@
 
             // 弾発射
             if (keys["Space"]) {
-                if (bullets.length < 1) {
-                    bullets.push({
-                        x: player.x + player.width / 2 - 2,
-                        y: player.y,
-                        width: 4,
-                        height: 10,
-                        speed: 8
-                    });
-                }
+                bullets.push({
+                    x: player.x + player.width / 2 - 2,
+                    y: player.y,
+                    width: 4,
+                    height: 10,
+                    speed: 8
+                });
+
             }
 
             // 弾移動

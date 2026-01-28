@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>放置ゲーム（クリッカー）</title>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            background: #0b0f14;
+            color: #e8eef5;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+
+        .wrap {
+            width: min(420px, 92vw);
+            background: #121a24;
+            border: 1px solid #223044;
+            border-radius: 16px;
+            padding: 18px;
+            box-shadow: 0 18px 40px rgba(0, 0, 0, .45);
+        }
+
+        h1 {
+            margin: 0 0 12px;
+            font-size: 20px;
+            text-align: center;
+        }
+
+        .score {
+            font-size: 32px;
+            font-weight: 800;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .per {
+            text-align: center;
+            opacity: .85;
+            margin-bottom: 14px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid #2a3a54;
+            background: #0e1520;
+            color: #e8eef5;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            border-color: #4a6aa3;
+        }
+
+        button:disabled {
+            opacity: .4;
+            cursor: not-allowed;
+        }
+
+        .shop {
+            margin-top: 16px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .item {
+            background: #0b111a;
+            border: 1px solid #223044;
+            border-radius: 12px;
+            padding: 10px;
+        }
+
+        .item-title {
+            font-weight: 700;
+        }
+
+        .item-desc {
+            font-size: 12px;
+            opacity: .8;
+            margin: 4px 0 8px;
+        }
+
+        .footer {
+            margin-top: 14px;
+            font-size: 12px;
+            opacity: .7;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <h1>放置ゲーム（クリッカー）</h1>
+
+        <div class="score" id="score">0</div>
+        <div class="per" id="per">毎秒 +0</div>
+
+        <button id="clickBtn">クリックして +1</button>
+
+        <div class="shop">
+            <div class="item">
+                <div class="item-title">自動生産装置</div>
+                <div class="item-desc">毎秒 +1（価格は購入ごとに上昇）</div>
+                <button id="buyAuto">購入（10）</button>
+            </div>
+
+            <div class="item">
+                <div class="item-title">クリック強化</div>
+                <div class="item-desc">クリックの獲得量 +1</div>
+                <button id="buyClick">購入（25）</button>
+            </div>
+        </div>
+
+        <div class="footer">
+            自動保存されます（localStorage）
+        </div>
+    </div>
+
+    <script>
+        (() => {
+            // ===== 状態 =====
+            let score = 0;
+            let perSecond = 0;
+            let clickPower = 1;
+
+            let autoCount = 0;
+            let autoCost = 10;
+            let clickCost = 25;
+
+            // ===== DOM =====
+            const elScore = document.getElementById("score");
+            const elPer = document.getElementById("per");
+            const btnClick = document.getElementById("clickBtn");
+            const btnAuto = document.getElementById("buyAuto");
+            const btnClickUp = document.getElementById("buyClick");
+
+            // ===== 保存 =====
+            const SAVE_KEY = "idle_game_save";
+
+            function save() {
+                localStorage.setItem(SAVE_KEY, JSON.stringify({
+                    score, perSecond, clickPower,
+                    autoCount, autoCost, clickCost
+                }));
+            }
+
+            function load() {
+                const raw = localStorage.getItem(SAVE_KEY);
+                if (!raw) return;
+                try {
+                    const d = JSON.parse(raw);
+                    score = d.score ?? score;
+                    perSecond = d.perSecond ?? perSecond;
+                    clickPower = d.clickPower ?? clickPower;
+                    autoCount = d.autoCount ?? autoCount;
+                    autoCost = d.autoCost ?? autoCost;
+                    clickCost = d.clickCost ?? clickCost;
+                } catch { }
+            }
+
+            // ===== UI =====
+            function updateUI() {
+                elScore.textContent = Math.floor(score);
+                elPer.textContent = `毎秒 +${perSecond}`;
+
+                btnAuto.textContent = `購入（${autoCost}）`;
+                btnClickUp.textContent = `購入（${clickCost}）`;
+
+                btnAuto.disabled = score < autoCost;
+                btnClickUp.disabled = score < clickCost;
+            }
+
+            // ===== 操作 =====
+            btnClick.addEventListener("click", () => {
+                score += clickPower;
+                updateUI();
+            });
+
+            btnAuto.addEventListener("click", () => {
+                if (score < autoCost) return;
+                score -= autoCost;
+                autoCount++;
+                perSecond += 1;
+                autoCost = Math.floor(autoCost * 1.5);
+                updateUI();
+            });
+
+            btnClickUp.addEventListener("click", () => {
+                if (score < clickCost) return;
+                score -= clickCost;
+                clickPower += 1;
+                clickCost = Math.floor(clickCost * 1.6);
+                updateUI();
+            });
+
+            // ===== 自動加算ループ =====
+            setInterval(() => {
+                score += perSecond;
+                updateUI();
+                save();
+            }, 1000);
+
+            // ===== 初期化 =====
+            load();
+            updateUI();
+        })();
+    </script>
+</body>
+
+</html>
