@@ -47,10 +47,14 @@
             // 矩形同士の当たり判定
             const hitRect = (a, b) => {
                 // aとbは{x, y, w, h}の形
+                return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
             }
 
 
             // ===== 入力 =====
+            const keys = new Set();
+            addEventListener("keydown", (e) => keys.add(e.code));
+            addEventListener("keyup", (e) => keys.delete(e.code));
             // キー入力管理用Set
 
             // キー押下時にSetに追加
@@ -71,6 +75,16 @@
             let enemySpawn = 0;
 
             function init() {
+                player = { x: 240 - 18, y: 640 - 70, w: 36, h: 36, speed: 320, hp: 1 };
+                bullets = [];
+                enemies = [];
+                particles = [];
+                score = 0;
+                gameOver = false;
+                lastTime = performance.now();
+                shootCool = 0;
+                enemySpawn = 0;
+
                 // 自機初期化
 
                 // 弾配列初期化
@@ -87,41 +101,111 @@
 
             // 敵スポーン処理
             function spawnEnemy() {
+                const size = rand(26, 100);
+                enemies.push({
+                    x: rand(10, canvas.width - size - 10),
+                    y: -size - 10,
+                    w: size,
+                    h: size,
+                    vy: rand(90, 180) + Math.min(score * 0.5, 120),
+                });
             }
 
             // 爆発エフェクト生成
             function boom(x, y, count = 10) {
+                for (let i = 0; i < count; i++) {
+                    particles.push({
+                        x, y,
+                        vx: rand(-160, 160),
+                        vy: rand(-160, 160),
+                        life: rand(0.25, 0.55),
+                    });
+                }
                 // countの数でパーティクル生成
             }
 
             // ===== 更新 =====
             function update(dt) {
+
+                // パーティクル
+                for (const p of particles) {
+                    p.x += p.vx * dt;
+                    p.y += p.vy * dt;
+                    p.life -= dt;
+                    p.vx *= 0.98;
+                    p.vy *= 0.98;
+                }
+                particles = particles.filter(p => p.life > 0);
+
                 // ゲームオーバー時の処理
                 if (gameOver) {
+                    if (keys.has("KeyR")) init();
                     // Rキーでリスタート
 
                     return;
                 }
 
                 // 自機移動
+                let dx = 0;
+                if (keys.has("ArrowLeft")) dx -= 1;
+                if (keys.has("ArrowRight")) dx += 1;
+                player.x += dx * player.speed * dt;
+                player.x = clamp(player.x, 0, canvas.width - player.w);
 
                 // 発射
-
+                shootCool -= dt;
+                if (keys.has("Space") && shootCool <= 0) {
+                    bullets.push({
+                        x: player.x + player.w / 2 - 3,
+                        y: player.y - 10,
+                        w: 6,
+                        h: 12,
+                        vy: 520
+                    });
+                    shootCool = 0.15;
+                }
                 // Spaceキーで弾を発射
 
                 // 弾移動
+                for (const b of bullets) b.y -= b.vy * dt;
+                bullets = bullets.filter(b => b.y + b.h > 0);
 
                 // 敵スポーン（時間で）
+                enemySpawn -= dt;
+                const spawnInterval = Math.max(0.25, 0.9 - score / 250);
+                if (enemySpawn <= 0) {
+                    spawnEnemy();
+                    enemySpawn = spawnInterval;
+                }
 
                 // 敵移動
+                for (const e of enemies) e.y += e.vy * dt;
+                enemies = enemies.filter(e => e.y < canvas.height + 80);
 
                 // 当たり判定：弾 vs 敵
+                for (const b of bullets) {
+                    for (const e of enemies) {
+                        if (!e.dead && hitRect(b, e)) {
+                            e.dead = true;
+                            b.dead = true;
+                            score += 10;
+                            boom(e.x + e.w / 2, e.y + e.h / 2, 14);
+                        }
+                    }
+                }
 
                 // 死んでいる弾と敵の削除
+                bullets = bullets.filter(b => !b.deas);
+                enemies = enemies.filter(e => !e.dead);
 
                 // 当たり判定：敵 vs 自機
-
-                // パーティクル
+                for (const e of enemies) {
+                    if (hitRect(player, e)) {
+                        gameOver = true;
+                        boom(player.x + player.w / 2, player.y + player.h / 2, 30);
+                        break;
+                    }
+                }
 
                 // 生存しているパーティクルのみに絞る
 
@@ -129,28 +213,73 @@
 
             // ===== 描画 =====
             function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
                 // 背景のクリア
 
                 // スター（簡易）
+                ctx.globalAlpha = 0.15;
+                for (let i = 0; i < 70; i++) {
+                    const x = (i * 71) % canvas.width;
+                    const y = (i * 149) % canvas.height;
+                    ctx.fillStyle = "white";
+                    ctx.fillRect(x, y, 2, 2);
+
+                }
+                ctx.globalAlpha = 1;
+
 
                 // 自機
+                ctx.fillStyle = "#4cffc0";
+                ctx.fillRect(player.x, player.y, player.w, player.h);
                 // ちょい装飾
+                ctx.fillStyle = "#1a2f2a";
+                ctx.fillRect(player.x + 6, player.y + 8, player.w - 12, player.h - 16);
 
                 // 弾
+                ctx.fillStyle = "#ffe45c";
+                for (const b of bullets) ctx.fillRect(b.x, b.y, b.w, b.h);
 
                 // 敵
+                ctx.fillStyle = "#ff4c6a";
+                for (const e of enemies) ctx.fillRect(e.x, e.y, e.w, e.h);
 
                 // パーティクル
+                ctx.fillStyle = "white";
+                for (const p of particles) {
+                    ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 2));
+                    ctx.fillRect(p.x, p.y, 2, 2);
+                }
+                ctx.globalAlpha = 1;
+
 
                 // UI
+                ctx.fillStyle = "white";
+                ctx.font = "16px system-ui, sans-serif";
+                ctx.fillText(`SCORE:${score}`, 14, 26);
+
 
                 // ゲームオーバー表示
                 if (gameOver) {
+                    ctx.fillStyle = "rgba(0,0,0,0.55)";
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    ctx.fillStyle = "white";
+                    ctx.font = "bold 28px system-ui,sams-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 18);
+
+                    ctx.font = "16px system-uo,sans-serif";
+                    ctx.fillText("Rキーでリスタート", canvas.width / 2, canvas.height / 2 + 18);
+                    ctx.textAlign = "left";
+
+
                 }
             }
 
             // ===== ループ =====
             function loop(now) {
+                const dt = Math.min(0.033, (now - lastTime) / 1000);
+                lastTime = now;
                 // 時間計測
 
                 update(dt);
