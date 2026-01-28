@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Snake Game</title>
+    <style>
+        body {
+            background: #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        canvas {
+            background: #000;
+            border: 2px solid #0f0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- 描画するHTMLCanvas -->
+    <canvas id="game" width="400" height="400"></canvas>
+
+    <script>
+        // キャンバス要素を取得
+        const canvas = document.getElementById("game");
+        // 2Dコンテキストを取得
+        const ctx = canvas.getContext("2d");
+
+        // グリッドのサイズ
+        const gridSize = 20;
+
+        // タイルの数
+        const tileCount = canvas.width / gridSize;
+
+        // スネークの初期位置
+        let snake = [
+            { x: 10, y: 10 }
+        ];
+
+        // スネークの移動方向
+        let dx = 1;
+        let dy = 0;
+
+        // エサの初期位置
+        let food = randomFood();
+
+        // 接触フラグ
+        let invisible = false;
+
+        function gameLoop() {
+            // ゲームが終了している場合は処理を中断
+
+            // スネークを移動
+
+            // ゲームオーバー判定
+
+            // 画面を再描画
+
+        }
+
+        function moveSnake() {
+            const head = {
+                x: snake[0].x + dx,
+                y: snake[0].y + dy
+            };
+
+            // スネークの頭の新しい位置を計算
+
+            // スネークの新しい頭を追加
+
+            // エサを食べたか判定
+
+            // 食べれたら新しいエサを生成、食べてなければ尻尾を削除
+        }
+
+        // 画面を描画する関数
+        function draw() {
+            // 画面をクリア
+
+            // 操作するスネークを描画
+
+            // エサを描画
+        }
+
+        function randomFood() {
+            // ランダムな位置にエサを生成 
+        }
+
+        function isGameOver() {
+            const head =
+                snake[0];
+
+            // 当たり判定用の頭のデータをとってくる
+
+            // 頭が壁に触れているか確認
+
+            // 自分の体が頭に触れているか確認
+            return false;
+        }
+
+        document.addEventListener("keydown", e => {
+            // キーボードの入力でスネークの方向を変更
+        });
+
+        // ゲームループ開始（150msごとに処理）
+        setInterval(gameLoop, 150);
+    </script>
+
+</body>
+
+</html>
